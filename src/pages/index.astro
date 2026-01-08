@@ -94,13 +94,22 @@ import Layout from '../layouts/Layout.astro';
           <span class="code-dot"></span>
           <span class="code-dot"></span>
           <span class="code-dot"></span>
+          <div class="mode-switch">
+            <button class="mode-btn active" data-mode="quick">Quick</button>
+            <button class="mode-btn" data-mode="hackable">Hackable</button>
+          </div>
           <div class="pm-switch">
             <button class="pm-btn" data-pm="npm">npm</button>
             <button class="pm-btn active" data-pm="pnpm">pnpm</button>
             <button class="pm-btn" data-pm="bun">bun</button>
           </div>
         </div>
-        <pre><code><span class="code-comment"># Clone and build</span>
+        <pre id="code-quick"><code><span class="code-comment"># Install globally</span>
+<span class="code-prompt">$</span> <span class="pm-install">pnpm add -g clawdbot</span>
+
+<span class="code-comment"># Run the onboarding wizard</span>
+<span class="code-prompt">$</span> clawdbot onboard</code></pre>
+        <pre id="code-hackable" style="display: none;"><code><span class="code-comment"># Clone and build from source</span>
 <span class="code-prompt">$</span> git clone https://github.com/clawdbot/clawdbot.git
 <span class="code-prompt">$</span> cd clawdbot
 <span class="code-prompt">$</span> <span class="pm-cmd">pnpm</span> install
@@ -116,15 +125,43 @@ import Layout from '../layouts/Layout.astro';
     </section>
 
     <script>
+      const installCmds = {
+        npm: 'npm i -g clawdbot',
+        pnpm: 'pnpm add -g clawdbot',
+        bun: 'bun add -g clawdbot'
+      };
+
+      let currentPm = 'pnpm';
+      let currentMode = 'quick';
+
       const pmBtns = document.querySelectorAll('.pm-btn');
-      const pmCmds = document.querySelectorAll('.pm-cmd');
+      const modeBtns = document.querySelectorAll('.mode-btn');
+      const codeQuick = document.getElementById('code-quick');
+      const codeHackable = document.getElementById('code-hackable');
+
+      function updateCommands() {
+        // Update hackable mode commands
+        document.querySelectorAll('.pm-cmd').forEach(cmd => cmd.textContent = currentPm);
+        // Update quick mode install command
+        document.querySelectorAll('.pm-install').forEach(cmd => cmd.textContent = installCmds[currentPm]);
+      }
 
       pmBtns.forEach(btn => {
         btn.addEventListener('click', () => {
-          const pm = btn.dataset.pm;
+          currentPm = btn.dataset.pm;
           pmBtns.forEach(b => b.classList.remove('active'));
           btn.classList.add('active');
-          pmCmds.forEach(cmd => cmd.textContent = pm);
+          updateCommands();
+        });
+      });
+
+      modeBtns.forEach(btn => {
+        btn.addEventListener('click', () => {
+          currentMode = btn.dataset.mode;
+          modeBtns.forEach(b => b.classList.remove('active'));
+          btn.classList.add('active');
+          codeQuick.style.display = currentMode === 'quick' ? 'block' : 'none';
+          codeHackable.style.display = currentMode === 'hackable' ? 'block' : 'none';
         });
       });
     </script>
@@ -426,8 +463,8 @@ import Layout from '../layouts/Layout.astro';
     font-family: var(--font-mono);
   }
 
+  .mode-switch,
   .pm-switch {
-    margin-left: auto;
     display: flex;
     gap: 4px;
     background: rgba(0, 0, 0, 0.3);
@@ -435,6 +472,11 @@ import Layout from '../layouts/Layout.astro';
     border-radius: 6px;
   }
 
+  .pm-switch {
+    margin-left: auto;
+  }
+
+  .mode-btn,
   .pm-btn {
     font-family: var(--font-mono);
     font-size: 0.7rem;
@@ -447,6 +489,7 @@ import Layout from '../layouts/Layout.astro';
     transition: all 0.15s ease;
   }
 
+  .mode-btn:hover,
   .pm-btn:hover {
     color: var(--text-secondary);
   }
@@ -457,7 +500,14 @@ import Layout from '../layouts/Layout.astro';
     font-weight: 600;
   }
 
-  .pm-cmd {
+  .mode-btn.active {
+    background: var(--cyan-bright);
+    color: var(--bg-deep);
+    font-weight: 600;
+  }
+
+  .pm-cmd,
+  .pm-install {
     color: var(--cyan-bright);
   }
 
