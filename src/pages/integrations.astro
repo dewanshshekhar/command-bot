@@ -95,10 +95,10 @@ const socialComms = [
 ];
 
 const showcase = [
-  { name: 'Tesco Autopilot', icon: 'lucide:shopping-cart', color: '#00539F', desc: 'Automated grocery shopping' },
-  { name: 'Bambu Control', icon: 'lucide:printer', color: '#00AE42', desc: '3D printer management' },
-  { name: 'Oura Ring', icon: 'lucide:heart', color: '#E4B363', desc: 'Health data insights' },
-  { name: 'Food Ordering', icon: 'lucide:utensils-crossed', color: '#FF5A5F', desc: 'Foodora integration' },
+  { name: 'Tesco Autopilot', icon: 'lucide:shopping-cart', color: '#00539F', desc: 'Automated grocery shopping', docs: 'https://docs.clawd.bot/start/showcase' },
+  { name: 'Bambu Control', icon: 'lucide:printer', color: '#00AE42', desc: '3D printer management', docs: 'https://docs.clawd.bot/start/showcase' },
+  { name: 'Oura Ring', icon: 'lucide:heart', color: '#E4B363', desc: 'Health data insights', docs: 'https://docs.clawd.bot/start/showcase' },
+  { name: 'Food Ordering', icon: 'lucide:utensils-crossed', color: '#FF5A5F', desc: 'Foodora integration', docs: 'https://docs.clawd.bot/start/showcase' },
 ];
 ---
 
@@ -280,11 +280,11 @@ const showcase = [
       <p class="section-desc">Impressive integrations built by the community.</p>
       <div class="grid">
         {showcase.map((p) => (
-          <div class="card showcase-card" style={`--accent: ${p.color}`}>
+          <a href={p.docs} target="_blank" rel="noopener" class="card showcase-card" style={`--accent: ${p.color}`}>
             <span class="card-icon"><Icon icon={p.icon} color={p.color} size={32} /></span>
             <h3 class="card-name">{p.name}</h3>
             <p class="card-desc">{p.desc}</p>
-          </div>
+          </a>
         ))}
       </div>
     </section>
@@ -296,8 +296,16 @@ const showcase = [
       <a href="/" class="cta-button">Get Started</a>
     </section>
 
+    <!-- ClawdHub CTA -->
+    <section class="clawdhub-cta">
+      <h2 class="clawdhub-title">Want More Skills?</h2>
+      <p class="clawdhub-desc">Discover 100+ community-built skills on ClawdHub — the public registry for sharing and discovering agent capabilities.</p>
+      <a href="https://clawdhub.com" target="_blank" rel="noopener" class="clawdhub-button">
+        Browse ClawdHub →
+      </a>
+    </section>
+
     <footer class="footer">
-      <p>Browse more integrations on <a href="https://clawdhub.com" target="_blank" rel="noopener">ClawdHub</a>.</p>
       <p>Built by <a href="https://clawd.me" target="_blank" rel="noopener">Clawd</a> 🦞, a space lobster AI with a <a href="https://soul.md" target="_blank" rel="noopener">soul</a>, by <a href="https://steipete.me" target="_blank" rel="noopener">Peter Steinberger</a> & <a href="https://github.com/clawdbot/clawdbot#community" target="_blank" rel="noopener">community</a>.</p>
     </footer>
   </main>
@@ -467,12 +475,13 @@ const showcase = [
   }
 
   .showcase-card {
-    cursor: default;
     border-style: dashed;
   }
 
   .showcase-card:hover {
-    transform: translateY(-2px);
+    transform: translateY(-4px);
+    border-color: var(--accent, var(--coral-bright));
+    box-shadow: 0 12px 40px color-mix(in srgb, var(--accent, var(--coral-bright)) 20%, transparent);
   }
 
   .card-icon {
@@ -540,6 +549,50 @@ const showcase = [
   .cta-button:hover {
     transform: translateY(-2px);
     box-shadow: 0 8px 24px rgba(255, 77, 77, 0.4);
+  }
+
+  .clawdhub-cta {
+    text-align: center;
+    padding: 48px 24px;
+    border-radius: 20px;
+    border: 1px solid var(--border-subtle);
+    background: rgba(10, 15, 26, 0.6);
+    backdrop-filter: blur(12px);
+    margin-bottom: 40px;
+  }
+
+  .clawdhub-title {
+    font-family: var(--font-display);
+    font-size: 1.8rem;
+    font-weight: 600;
+    margin-bottom: 8px;
+  }
+
+  .clawdhub-desc {
+    color: var(--text-muted);
+    margin-bottom: 24px;
+    max-width: 600px;
+    margin-left: auto;
+    margin-right: auto;
+  }
+
+  .clawdhub-button {
+    display: inline-block;
+    padding: 14px 32px;
+    border-radius: 10px;
+    background: linear-gradient(135deg, var(--cyan-bright), var(--cyan-mid));
+    color: var(--bg-deep);
+    font-family: var(--font-display);
+    font-weight: 600;
+    font-size: 1rem;
+    text-decoration: none;
+    transition: all 0.25s ease;
+    box-shadow: 0 4px 16px rgba(0, 229, 204, 0.3);
+  }
+
+  .clawdhub-button:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 24px rgba(0, 229, 204, 0.4);
   }
 
   .footer {
