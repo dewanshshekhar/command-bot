@@ -644,7 +644,6 @@ EOF
     if [[ "$INSTALL_METHOD" == "git" ]]; then
         echo -e "Installed from source. To update later, run: ${INFO}clawdbot update --restart${NC}"
         echo -e "Switch to global install later: ${INFO}curl -fsSL https://clawd.bot/install.sh | bash -s -- --install-method npm${NC}"
-    elif [[ "$INSTALL_METHOD" == "npm" ]]; then
     elif [[ "$is_upgrade" == "true" ]]; then
         echo -e "Upgrade complete. Run ${INFO}clawdbot doctor${NC} to check for additional migrations."
     else
