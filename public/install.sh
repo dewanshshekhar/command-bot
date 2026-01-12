@@ -521,6 +521,41 @@ run_doctor() {
     echo -e "${SUCCESS}✓${NC} Migration complete"
 }
 
+resolve_workspace_dir() {
+    local profile="${CLAWDBOT_PROFILE:-default}"
+    if [[ "${profile}" != "default" ]]; then
+        echo "${HOME}/clawd-${profile}"
+    else
+        echo "${HOME}/clawd"
+    fi
+}
+
+run_bootstrap_onboarding_if_needed() {
+    if [[ "${NO_ONBOARD}" == "1" ]]; then
+        return
+    fi
+
+    local workspace
+    workspace="$(resolve_workspace_dir)"
+    local bootstrap="${workspace}/BOOTSTRAP.md"
+
+    if [[ ! -f "${bootstrap}" ]]; then
+        return
+    fi
+
+    if [[ ! -r /dev/tty || ! -w /dev/tty ]]; then
+        echo -e "${WARN}→${NC} BOOTSTRAP.md found at ${INFO}${bootstrap}${NC}; no TTY, skipping onboarding."
+        echo -e "Run ${INFO}clawdbot onboard${NC} later to finish setup."
+        return
+    fi
+
+    echo -e "${WARN}→${NC} BOOTSTRAP.md found at ${INFO}${bootstrap}${NC}; starting onboarding..."
+    clawdbot onboard || {
+        echo -e "${ERROR}Onboarding failed; BOOTSTRAP.md still present. Re-run ${INFO}clawdbot onboard${ERROR}.${NC}"
+        return
+    }
+}
+
 resolve_clawdbot_version() {
     local version=""
     if command -v clawdbot &> /dev/null; then
@@ -629,6 +664,9 @@ EOF
     if [[ "$is_upgrade" == "true" ]]; then
         run_doctor
     fi
+
+    # Step 7: If BOOTSTRAP.md is still present in the workspace, resume onboarding
+    run_bootstrap_onboarding_if_needed
 
     local installed_version
     installed_version=$(resolve_clawdbot_version)
