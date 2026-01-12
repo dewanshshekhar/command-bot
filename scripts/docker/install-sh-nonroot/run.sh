@@ -19,6 +19,14 @@ else
   CLI_INSTALL_URL="https://clawd.bot/install-cli.sh"
 fi
 
+echo "==> Installer: --help"
+curl -fsSL "$INSTALL_URL" | bash -s -- --help >/tmp/install-help.txt
+grep -q -- "--install-method" /tmp/install-help.txt
+
+echo "==> CLI installer: --help"
+curl -fsSL "$CLI_INSTALL_URL" | bash -s -- --help >/tmp/install-cli-help.txt
+grep -q -- "--prefix" /tmp/install-cli-help.txt
+
 echo "==> Pre-flight: ensure git absent"
 if command -v git >/dev/null; then
   echo "git is present unexpectedly" >&2

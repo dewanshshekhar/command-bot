@@ -26,6 +26,10 @@ NODE
 
 echo "latest=$LATEST_VERSION previous=$PREVIOUS_VERSION"
 
+echo "==> Installer: --help"
+curl -fsSL "$INSTALL_URL" | bash -s -- --help >/tmp/install-help.txt
+grep -q -- "--install-method" /tmp/install-help.txt
+
 echo "==> Preinstall previous (forces installer upgrade path)"
 npm install -g "clawdbot@${PREVIOUS_VERSION}"
 

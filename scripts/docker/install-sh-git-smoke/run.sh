@@ -10,6 +10,10 @@ else
   INSTALL_URL="https://clawd.bot/install.sh"
 fi
 
+echo "==> Installer: --help"
+curl -fsSL "$INSTALL_URL" | bash -s -- --help >/tmp/install-help.txt
+grep -q -- "--install-method" /tmp/install-help.txt
+
 echo "==> Clone Clawdbot repo"
 REPO_DIR="/tmp/clawdbot-src"
 rm -rf "$REPO_DIR"
@@ -52,4 +56,3 @@ if [[ "$INSTALLED_VERSION" != "$EXPECTED_VERSION" ]]; then
 fi
 
 echo "OK"
-
