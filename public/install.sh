@@ -502,6 +502,7 @@ exec node "${repo_dir}/dist/entry.js" "\$@"
 EOF
     chmod +x "$HOME/.local/bin/clawdbot"
     echo -e "${SUCCESS}✓${NC} Clawdbot wrapper installed to \$HOME/.local/bin/clawdbot"
+    echo -e "${INFO}i${NC} This checkout uses pnpm. For deps, run: ${INFO}pnpm install${NC} (avoid npm install in the repo)."
 }
 
 # Install Clawdbot
@@ -660,8 +661,12 @@ EOF
         install_clawdbot
     fi
 
-    # Step 6: Run doctor for migrations if upgrading
-    if [[ "$is_upgrade" == "true" ]]; then
+    # Step 6: Run doctor for migrations on upgrades and git installs
+    local run_doctor_after=false
+    if [[ "$is_upgrade" == "true" || "$INSTALL_METHOD" == "git" ]]; then
+        run_doctor_after=true
+    fi
+    if [[ "$run_doctor_after" == "true" ]]; then
         run_doctor
     fi
 
@@ -697,6 +702,12 @@ EOF
             echo -e "${WARN}→${NC} No TTY available; skipping onboarding."
             echo -e "Run ${INFO}clawdbot onboard${NC} later."
             return 0
+        fi
+    fi
+
+    if command -v clawdbot &> /dev/null; then
+        if clawdbot daemon status >/dev/null 2>&1; then
+            echo -e "${INFO}i${NC} Gateway daemon detected; restart with: ${INFO}clawdbot daemon restart${NC}"
         fi
     fi
 
