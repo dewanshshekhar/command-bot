@@ -8,6 +8,7 @@ PREFIX="${CLAWDBOT_PREFIX:-${HOME}/.clawdbot}"
 CLAWDBOT_VERSION="${CLAWDBOT_VERSION:-latest}"
 NODE_VERSION="${CLAWDBOT_NODE_VERSION:-22.22.0}"
 SHARP_IGNORE_GLOBAL_LIBVIPS="${SHARP_IGNORE_GLOBAL_LIBVIPS:-1}"
+NPM_LOGLEVEL="${CLAWDBOT_NPM_LOGLEVEL:-error}"
 JSON=0
 RUN_ONBOARD=0
 SET_NPM_PREFIX=0
@@ -25,6 +26,7 @@ Usage: install-cli.sh [options]
 
 Environment variables:
   SHARP_IGNORE_GLOBAL_LIBVIPS=0|1    Default: 1 (avoid sharp building against global libvips)
+  CLAWDBOT_NPM_LOGLEVEL=error|warn|notice  Default: error (hide npm deprecation noise)
 EOF
 }
 
@@ -34,8 +36,30 @@ log() {
   fi
 }
 
-curl_secure() {
-  curl -fsSL --proto '=https' --tlsv1.2 "$@"
+DOWNLOADER=""
+detect_downloader() {
+  if command -v curl >/dev/null 2>&1; then
+    DOWNLOADER="curl"
+    return 0
+  fi
+  if command -v wget >/dev/null 2>&1; then
+    DOWNLOADER="wget"
+    return 0
+  fi
+  fail "Missing downloader (curl or wget required)"
+}
+
+download_file() {
+  local url="$1"
+  local output="$2"
+  if [[ -z "$DOWNLOADER" ]]; then
+    detect_downloader
+  fi
+  if [[ "$DOWNLOADER" == "curl" ]]; then
+    curl -fsSL --proto '=https' --tlsv1.2 --retry 3 --retry-delay 1 --retry-connrefused -o "$output" "$url"
+    return
+  fi
+  wget -q --https-only --secure-protocol=TLSv1_2 --tries=3 --timeout=20 -O "$output" "$url"
 }
 
 cleanup_legacy_submodules() {
@@ -258,16 +282,16 @@ install_node() {
   tarball="node-v${NODE_VERSION}-${os}-${arch}.tar.gz"
   url="${base_url}/${tarball}"
 
-  require_bin curl
+  detect_downloader
   require_bin tar
 
-  curl_secure "${base_url}/SHASUMS256.txt" -o "$tmp/SHASUMS256.txt"
+  download_file "${base_url}/SHASUMS256.txt" "$tmp/SHASUMS256.txt"
   expected_sha="$(grep "  ${tarball}$" "$tmp/SHASUMS256.txt" | awk '{print $1}' | head -n 1 || true)"
   if [[ -z "${expected_sha}" ]]; then
     fail "Failed to resolve Node shasum for ${tarball}"
   fi
 
-  curl_secure "$url" -o "$tmp/node.tgz"
+  download_file "$url" "$tmp/node.tgz"
   actual_sha="$(sha256_file "$tmp/node.tgz")"
   if [[ "$actual_sha" != "$expected_sha" ]]; then
     fail "Node tarball sha256 mismatch for ${tarball} (expected ${expected_sha}, got ${actual_sha})"
@@ -320,6 +344,11 @@ fix_npm_prefix_if_needed() {
 
 install_clawdbot() {
   local requested="${CLAWDBOT_VERSION:-latest}"
+  local npm_args=(
+    --loglevel "$NPM_LOGLEVEL"
+    --no-fund
+    --no-audit
+  )
   emit_json "{\"event\":\"step\",\"name\":\"clawdbot\",\"status\":\"start\",\"version\":\"${requested}\"}"
   log "Installing Clawdbot (${requested})..."
   if [[ "$SET_NPM_PREFIX" -eq 1 ]]; then
@@ -327,14 +356,14 @@ install_clawdbot() {
   fi
 
   if [[ "${requested}" == "latest" ]]; then
-    if ! SHARP_IGNORE_GLOBAL_LIBVIPS="$SHARP_IGNORE_GLOBAL_LIBVIPS" "$(npm_bin)" install -g --prefix "$PREFIX" "clawdbot@latest"; then
+    if ! SHARP_IGNORE_GLOBAL_LIBVIPS="$SHARP_IGNORE_GLOBAL_LIBVIPS" "$(npm_bin)" install -g --prefix "$PREFIX" "${npm_args[@]}" "clawdbot@latest"; then
       log "npm install clawdbot@latest failed; retrying clawdbot@next"
       emit_json "{\"event\":\"step\",\"name\":\"clawdbot\",\"status\":\"retry\",\"version\":\"next\"}"
-      SHARP_IGNORE_GLOBAL_LIBVIPS="$SHARP_IGNORE_GLOBAL_LIBVIPS" "$(npm_bin)" install -g --prefix "$PREFIX" "clawdbot@next"
+      SHARP_IGNORE_GLOBAL_LIBVIPS="$SHARP_IGNORE_GLOBAL_LIBVIPS" "$(npm_bin)" install -g --prefix "$PREFIX" "${npm_args[@]}" "clawdbot@next"
       requested="next"
     fi
   else
-    SHARP_IGNORE_GLOBAL_LIBVIPS="$SHARP_IGNORE_GLOBAL_LIBVIPS" "$(npm_bin)" install -g --prefix "$PREFIX" "clawdbot@${requested}"
+    SHARP_IGNORE_GLOBAL_LIBVIPS="$SHARP_IGNORE_GLOBAL_LIBVIPS" "$(npm_bin)" install -g --prefix "$PREFIX" "${npm_args[@]}" "clawdbot@${requested}"
   fi
 
   rm -f "${PREFIX}/bin/clawdbot"
