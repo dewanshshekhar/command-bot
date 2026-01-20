@@ -168,6 +168,10 @@ const duration2 = (row2.length / 2 * pixelsPerItem) / pixelsPerSecond;
             <button class="os-btn active" data-os="unix">macOS/Linux</button>
             <button class="os-btn" data-os="windows">Windows</button>
           </div>
+          <div class="win-shell-switch" id="win-shell-switch" style="display: none;">
+            <button class="win-shell-btn active" data-shell="powershell">PowerShell</button>
+            <button class="win-shell-btn" data-shell="cmd">CMD</button>
+          </div>
           <div class="beta-switch" id="beta-switch">
             <button class="beta-btn" id="beta-btn" data-beta="false">
               <span class="beta-label">β</span>
@@ -277,11 +281,13 @@ const duration2 = (row2.length / 2 * pixelsPerItem) / pixelsPerSecond;
         pnpm: 'pnpm add -g clawdbot'
       };
 
-      const windowsCmd = 'iwr -useb https://clawd.bot/install.ps1 | iex';
-      const windowsBetaCmd = '& ([scriptblock]::Create((iwr -useb https://clawd.bot/install.ps1))) -Tag beta';
+      const windowsPsCmd = 'iwr -useb https://clawd.bot/install.ps1 | iex';
+      const windowsPsBetaCmd = '& ([scriptblock]::Create((iwr -useb https://clawd.bot/install.ps1))) -Tag beta';
+      const windowsCmdCmd = 'curl -fsSL https://clawd.bot/install.cmd -o install.cmd && install.cmd && del install.cmd';
+      const windowsCmdBetaCmd = 'curl -fsSL https://clawd.bot/install.cmd -o install.cmd && install.cmd --tag beta && del install.cmd';
       const osCmds = {
         unix: "curl -fsSL https://clawd.bot/install.sh | bash",
-        windows: windowsCmd
+        windows: windowsPsCmd
       };
 
       const osLabels = {
@@ -294,6 +300,7 @@ const duration2 = (row2.length / 2 * pixelsPerItem) / pixelsPerSecond;
       let currentHackable = 'installer';
       let currentBeta = false;
       let osPickerExpanded = false;
+      let currentWinShell = 'powershell';
 
       // Auto-detect OS
       const isWindows = navigator.platform.toLowerCase().includes('win') ||
@@ -303,10 +310,12 @@ const duration2 = (row2.length / 2 * pixelsPerItem) / pixelsPerSecond;
       const pmBtns = document.querySelectorAll('.pm-btn');
       const hackableBtns = document.querySelectorAll('.hackable-btn');
       const osBtns = document.querySelectorAll('.os-btn');
+      const winShellBtns = document.querySelectorAll('.win-shell-btn');
       const modeBtns = document.querySelectorAll('.mode-btn');
       const pmSwitch = document.getElementById('pm-switch');
       const hackableSwitch = document.getElementById('hackable-switch');
       const osSwitch = document.getElementById('os-switch');
+      const winShellSwitch = document.getElementById('win-shell-switch');
       const osIndicator = document.getElementById('os-indicator');
       const osDetected = document.getElementById('os-detected');
       const osChangeBtn = document.getElementById('os-change-btn');
@@ -347,14 +356,17 @@ const duration2 = (row2.length / 2 * pixelsPerItem) / pixelsPerSecond;
           ? `npm i -g clawdbot${betaSuffix}`
           : `pnpm add -g clawdbot${betaSuffix}`;
         document.querySelectorAll('.pm-install').forEach(cmd => cmd.textContent = installCmd);
-        // Update one-liner OS command (with beta support)
-        const onelinerCmd = currentOs === 'unix'
-          ? (currentBeta
-              ? "curl -fsSL https://clawd.bot/install.sh | bash -s -- --beta"
-              : "curl -fsSL https://clawd.bot/install.sh | bash")
-          : (currentBeta
-              ? windowsBetaCmd
-              : windowsCmd);
+        // Update one-liner OS command (with beta and shell support)
+        let onelinerCmd;
+        if (currentOs === 'unix') {
+          onelinerCmd = currentBeta
+            ? "curl -fsSL https://clawd.bot/install.sh | bash -s -- --beta"
+            : "curl -fsSL https://clawd.bot/install.sh | bash";
+        } else if (currentWinShell === 'cmd') {
+          onelinerCmd = currentBeta ? windowsCmdBetaCmd : windowsCmdCmd;
+        } else {
+          onelinerCmd = currentBeta ? windowsPsBetaCmd : windowsPsCmd;
+        }
         document.querySelectorAll('.os-cmd').forEach(cmd => cmd.textContent = onelinerCmd);
         // Update hackable OS command for installer mode
         const hackableOsCmd = "curl -fsSL https://clawd.bot/install.sh | bash -s -- --install-method git";
@@ -388,9 +400,12 @@ const duration2 = (row2.length / 2 * pixelsPerItem) / pixelsPerSecond;
         const showHackableControls = currentMode === 'hackable';
         // Beta only applies to oneliner and npm modes (git always gets main branch)
         const showBetaControls = currentMode === 'oneliner' || currentMode === 'quick';
+        // Show Windows shell toggle when Windows is selected in one-liner mode
+        const showWinShellControls = showOsControls && currentOs === 'windows';
 
         osIndicator.style.display = showOsControls && !osPickerExpanded ? 'flex' : 'none';
         osSwitch.style.display = showOsControls && osPickerExpanded ? 'flex' : 'none';
+        winShellSwitch.style.display = showWinShellControls ? 'flex' : 'none';
         pmSwitch.style.display = showPmControls ? 'flex' : 'none';
         hackableSwitch.style.display = showHackableControls ? 'flex' : 'none';
         betaSwitch.style.display = showBetaControls ? 'flex' : 'none';
@@ -440,6 +455,15 @@ const duration2 = (row2.length / 2 * pixelsPerItem) / pixelsPerSecond;
         });
       });
 
+      winShellBtns.forEach(btn => {
+        btn.addEventListener('click', () => {
+          currentWinShell = btn.dataset.shell;
+          winShellBtns.forEach(b => b.classList.remove('active'));
+          btn.classList.add('active');
+          updateCommands();
+        });
+      });
+
       modeBtns.forEach(btn => {
         btn.addEventListener('click', () => {
           currentMode = btn.dataset.mode;
@@ -457,13 +481,17 @@ const duration2 = (row2.length / 2 * pixelsPerItem) / pixelsPerSecond;
 
       // Copy button functionality
       const copyCommands = {
-        'oneliner': () => currentOs === 'unix'
-          ? (currentBeta
+        'oneliner': () => {
+          if (currentOs === 'unix') {
+            return currentBeta
               ? "curl -fsSL https://clawd.bot/install.sh | bash -s -- --beta"
-              : "curl -fsSL https://clawd.bot/install.sh | bash")
-          : (currentBeta
-              ? windowsBetaCmd
-              : windowsCmd),
+              : "curl -fsSL https://clawd.bot/install.sh | bash";
+          } else if (currentWinShell === 'cmd') {
+            return currentBeta ? windowsCmdBetaCmd : windowsCmdCmd;
+          } else {
+            return currentBeta ? windowsPsBetaCmd : windowsPsCmd;
+          }
+        },
         'install': () => {
           const betaSuffix = currentBeta ? '@beta' : '';
           return currentPm === 'npm' ? `npm i -g clawdbot${betaSuffix}` : `pnpm add -g clawdbot${betaSuffix}`;
@@ -1161,7 +1189,8 @@ const duration2 = (row2.length / 2 * pixelsPerItem) / pixelsPerSecond;
   .mode-switch,
   .pm-switch,
   .hackable-switch,
-  .os-switch {
+  .os-switch,
+  .win-shell-switch {
     display: flex;
     gap: 4px;
     background: rgba(0, 0, 0, 0.3);
@@ -1171,14 +1200,20 @@ const duration2 = (row2.length / 2 * pixelsPerItem) / pixelsPerSecond;
 
   .pm-switch,
   .hackable-switch,
-  .os-switch {
+  .os-switch,
+  .win-shell-switch {
     margin-left: auto;
+  }
+
+  .win-shell-switch {
+    margin-left: 8px;
   }
 
   .mode-btn,
   .pm-btn,
   .hackable-btn,
-  .os-btn {
+  .os-btn,
+  .win-shell-btn {
     font-family: var(--font-mono);
     font-size: 0.7rem;
     padding: 4px 10px;
@@ -1193,13 +1228,15 @@ const duration2 = (row2.length / 2 * pixelsPerItem) / pixelsPerSecond;
   .mode-btn:hover,
   .pm-btn:hover,
   .hackable-btn:hover,
-  .os-btn:hover {
+  .os-btn:hover,
+  .win-shell-btn:hover {
     color: var(--text-secondary);
   }
 
   .pm-btn.active,
   .hackable-btn.active,
-  .os-btn.active {
+  .os-btn.active,
+  .win-shell-btn.active {
     background: var(--coral-bright);
     color: var(--bg-deep);
     font-weight: 600;
@@ -1602,12 +1639,17 @@ const duration2 = (row2.length / 2 * pixelsPerItem) / pixelsPerSecond;
     /* Contextual switches appear first (after dots), right-aligned */
     .os-indicator,
     .os-switch,
+    .win-shell-switch,
     .pm-switch,
     .hackable-switch,
     .beta-switch,
     .switch-placeholder {
       order: 1;
       margin-left: auto;
+    }
+
+    .win-shell-switch {
+      margin-left: 4px;
     }
 
     /* Mode tabs appear last */
@@ -1624,7 +1666,8 @@ const duration2 = (row2.length / 2 * pixelsPerItem) / pixelsPerSecond;
     }
 
     .os-btn,
-    .pm-btn {
+    .pm-btn,
+    .win-shell-btn {
       padding: 4px 8px;
       font-size: 0.65rem;
     }

@@ -7,6 +7,29 @@ on:
   workflow_dispatch:
 
 jobs:
+  install-scripts-cross-platform:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v4
+
+      - name: install.sh dry run
+        if: runner.os != 'Windows'
+        run: bash public/install.sh --dry-run --no-onboard --no-prompt
+
+      - name: install.ps1 dry run
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: .\\public\\install.ps1 -DryRun -NoOnboard -InstallMethod npm
+
+      - name: install.cmd dry run
+        if: runner.os == 'Windows'
+        shell: cmd
+        run: set "CLAWDBOT_INSTALL_PS1_URL=%GITHUB_WORKSPACE%\\public\\install.ps1" && .\\public\\install.cmd --dry-run --no-onboard --npm
+
   shellcheck:
     runs-on: ubuntu-latest
     steps:

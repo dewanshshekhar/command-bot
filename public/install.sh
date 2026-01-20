@@ -36,15 +36,38 @@ mktempfile() {
     echo "$f"
 }
 
-curl_secure() {
-    curl -fsSL --proto '=https' --tlsv1.2 "$@"
+DOWNLOADER=""
+detect_downloader() {
+    if command -v curl &> /dev/null; then
+        DOWNLOADER="curl"
+        return 0
+    fi
+    if command -v wget &> /dev/null; then
+        DOWNLOADER="wget"
+        return 0
+    fi
+    echo -e "${ERROR}Error: Missing downloader (curl or wget required)${NC}"
+    exit 1
+}
+
+download_file() {
+    local url="$1"
+    local output="$2"
+    if [[ -z "$DOWNLOADER" ]]; then
+        detect_downloader
+    fi
+    if [[ "$DOWNLOADER" == "curl" ]]; then
+        curl -fsSL --proto '=https' --tlsv1.2 --retry 3 --retry-delay 1 --retry-connrefused -o "$output" "$url"
+        return
+    fi
+    wget -q --https-only --secure-protocol=TLSv1_2 --tries=3 --timeout=20 -O "$output" "$url"
 }
 
 run_remote_bash() {
     local url="$1"
     local tmp
     tmp="$(mktempfile)"
-    curl_secure "$url" -o "$tmp"
+    download_file "$url" "$tmp"
     /bin/bash "$tmp"
 }
 
@@ -393,22 +416,23 @@ install_node() {
         echo -e "${SUCCESS}✓${NC} Node.js installed"
 	    elif [[ "$OS" == "linux" ]]; then
 	        echo -e "${WARN}→${NC} Installing Node.js via NodeSource..."
+            require_sudo
 	        if command -v apt-get &> /dev/null; then
 	            local tmp
 	            tmp="$(mktempfile)"
-	            curl_secure "https://deb.nodesource.com/setup_22.x" -o "$tmp"
+	            download_file "https://deb.nodesource.com/setup_22.x" "$tmp"
 	            sudo -E bash "$tmp"
 	            sudo apt-get install -y nodejs
 	        elif command -v dnf &> /dev/null; then
 	            local tmp
 	            tmp="$(mktempfile)"
-	            curl_secure "https://rpm.nodesource.com/setup_22.x" -o "$tmp"
+	            download_file "https://rpm.nodesource.com/setup_22.x" "$tmp"
 	            sudo bash "$tmp"
 	            sudo dnf install -y nodejs
 	        elif command -v yum &> /dev/null; then
 	            local tmp
 	            tmp="$(mktempfile)"
-	            curl_secure "https://rpm.nodesource.com/setup_22.x" -o "$tmp"
+	            download_file "https://rpm.nodesource.com/setup_22.x" "$tmp"
 	            sudo bash "$tmp"
 	            sudo yum install -y nodejs
 	        else
@@ -430,11 +454,31 @@ check_git() {
     return 1
 }
 
+is_root() {
+    [[ "$(id -u)" -eq 0 ]]
+}
+
+require_sudo() {
+    if [[ "$OS" != "linux" ]]; then
+        return 0
+    fi
+    if is_root; then
+        return 0
+    fi
+    if command -v sudo &> /dev/null; then
+        return 0
+    fi
+    echo -e "${ERROR}Error: sudo is required for system installs on Linux${NC}"
+    echo "Install sudo or re-run as root."
+    exit 1
+}
+
 install_git() {
     echo -e "${WARN}→${NC} Installing Git..."
     if [[ "$OS" == "macos" ]]; then
         brew install git
     elif [[ "$OS" == "linux" ]]; then
+        require_sudo
         if command -v apt-get &> /dev/null; then
             sudo apt-get update -y
             sudo apt-get install -y git
@@ -576,7 +620,7 @@ warn_shell_path_missing_dir() {
 
     echo ""
     echo -e "${WARN}→${NC} PATH warning: missing ${label}: ${INFO}${dir}${NC}"
-    echo -e "This can make ${INFO}clawdbot${NC} show as “command not found” in new terminals."
+    echo -e "This can make ${INFO}clawdbot${NC} show as \"command not found\" in new terminals."
     echo -e "Fix (zsh: ~/.zshrc, bash: ~/.bashrc):"
     echo -e "  export PATH=\"${dir}:\\$PATH\""
     echo -e "Docs: ${INFO}https://docs.clawd.bot/install#nodejs--npm-path-sanity${NC}"
@@ -871,8 +915,12 @@ main() {
     detected_checkout="$(detect_clawdbot_checkout "$PWD" || true)"
 
     if [[ -z "$INSTALL_METHOD" && -n "$detected_checkout" ]]; then
-        local choice=""
-        choice="$(prompt_choice "$(cat <<EOF
+        if ! is_promptable; then
+            echo -e "${WARN}→${NC} Found a Clawdbot checkout, but no TTY; defaulting to npm install."
+            INSTALL_METHOD="npm"
+        else
+            local choice=""
+            choice="$(prompt_choice "$(cat <<EOF
 ${WARN}→${NC} Detected a Clawdbot source checkout in: ${INFO}${detected_checkout}${NC}
 Choose install method:
   1) Update this checkout (git) and use it
@@ -881,15 +929,16 @@ Enter 1 or 2:
 EOF
 )" || true)"
 
-        case "$choice" in
-            1) INSTALL_METHOD="git" ;;
-            2) INSTALL_METHOD="npm" ;;
-            *)
-                echo -e "${ERROR}Error: no install method selected.${NC}"
-                echo "Re-run with: --install-method git|npm (or set CLAWDBOT_INSTALL_METHOD)."
-                exit 2
-                ;;
-        esac
+            case "$choice" in
+                1) INSTALL_METHOD="git" ;;
+                2) INSTALL_METHOD="npm" ;;
+                *)
+                    echo -e "${ERROR}Error: no install method selected.${NC}"
+                    echo "Re-run with: --install-method git|npm (or set CLAWDBOT_INSTALL_METHOD)."
+                    exit 2
+                    ;;
+            esac
+        fi
     fi
 
     if [[ -z "$INSTALL_METHOD" ]]; then

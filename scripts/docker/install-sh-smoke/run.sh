@@ -10,27 +10,75 @@ else
   INSTALL_URL="https://clawd.bot/install.sh"
 fi
 
-echo "==> Resolve npm versions"
-LATEST_VERSION="$(npm view clawdbot dist-tags.latest)"
-NEXT_VERSION="$(npm view clawdbot dist-tags.next)"
-PREVIOUS_VERSION="$(NEXT_VERSION="$NEXT_VERSION" node - <<'NODE'
-const { execSync } = require("node:child_process");
+fetch_registry_versions() {
+  node - <<'NODE'
+const https = require("node:https");
 
-const versions = JSON.parse(execSync("npm view clawdbot versions --json", { encoding: "utf8" }));
-if (!Array.isArray(versions) || versions.length === 0) {
-  process.exit(1);
+const url = process.env.NPM_REGISTRY_URL || "https://registry.npmjs.org/clawdbot";
+
+function delay(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-const next = (process.env.NEXT_VERSION || "").trim();
-if (!next) {
-  process.exit(1);
+function requestJson() {
+  return new Promise((resolve, reject) => {
+    const req = https.get(url, {
+      headers: { Accept: "application/vnd.npm.install-v1+json" }
+    }, (res) => {
+      if (res.statusCode !== 200) {
+        res.resume();
+        reject(new Error(`registry status ${res.statusCode}`));
+        return;
+      }
+      let data = "";
+      res.on("data", (chunk) => (data += chunk));
+      res.on("end", () => {
+        try {
+          resolve(JSON.parse(data));
+        } catch (err) {
+          reject(err);
+        }
+      });
+    });
+    req.on("error", reject);
+  });
 }
 
-const idx = versions.indexOf(next);
-const previous = idx > 0 ? versions[idx - 1] : (versions.length >= 2 ? versions[versions.length - 2] : versions[0]);
-process.stdout.write(previous);
+(async () => {
+  for (let attempt = 1; attempt <= 3; attempt += 1) {
+    try {
+      const data = await requestJson();
+      const tags = data["dist-tags"] || {};
+      const time = data.time || {};
+      const versions = Object.entries(time)
+        .filter(([key]) => key !== "created" && key !== "modified")
+        .sort((a, b) => new Date(b[1]) - new Date(a[1]))
+        .map(([key]) => key);
+      const latest = tags.latest || versions[0] || "";
+      const next = tags.next || latest;
+      const previous = versions.find((v) => v !== next) || latest || next;
+      if (!latest) {
+        process.exit(1);
+      }
+      process.stdout.write(`${latest}\n${next}\n${previous}`);
+      return;
+    } catch (err) {
+      if (attempt === 3) {
+        console.error(err.message || err);
+        process.exit(1);
+      }
+      await delay(attempt * 500);
+    }
+  }
+})();
 NODE
-)"
+}
+
+echo "==> Resolve npm versions"
+REGISTRY_INFO="$(fetch_registry_versions)"
+LATEST_VERSION="$(printf '%s\n' "$REGISTRY_INFO" | sed -n '1p')"
+NEXT_VERSION="$(printf '%s\n' "$REGISTRY_INFO" | sed -n '2p')"
+PREVIOUS_VERSION="$(printf '%s\n' "$REGISTRY_INFO" | sed -n '3p')"
 
 echo "latest=$LATEST_VERSION next=$NEXT_VERSION previous=$PREVIOUS_VERSION"
 
@@ -79,8 +127,13 @@ touch "$TMP_REPO/pnpm-workspace.yaml"
   curl_install | bash -s -- --dry-run --no-onboard --no-prompt >/tmp/repo-detect.out 2>&1
   code=$?
   set -e
-  if [[ "$code" -eq 0 ]]; then
-    echo "ERROR: expected repo-detect dry-run to fail without --install-method" >&2
+  if [[ "$code" -ne 0 ]]; then
+    echo "ERROR: expected repo-detect dry-run to succeed without --install-method" >&2
+    cat /tmp/repo-detect.out >&2
+    exit 1
+  fi
+  if ! sed -r 's/\x1b\[[0-9;]*m//g' /tmp/repo-detect.out | grep -q "Install method: npm"; then
+    echo "ERROR: expected repo-detect dry-run to default to npm install" >&2
     cat /tmp/repo-detect.out >&2
     exit 1
   fi

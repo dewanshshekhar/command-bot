@@ -1,12 +1,15 @@
 # Clawdbot Installer for Windows
 # Usage: iwr -useb https://clawd.bot/install.ps1 | iex
-#        & ([scriptblock]::Create((iwr -useb https://clawd.bot/install.ps1))) -Tag beta
+#        & ([scriptblock]::Create((iwr -useb https://clawd.bot/install.ps1))) -Tag beta -NoOnboard -DryRun
 
 param(
     [string]$Tag = "latest",
     [ValidateSet("npm", "git")]
     [string]$InstallMethod = "npm",
-    [string]$GitDir
+    [string]$GitDir,
+    [switch]$NoOnboard,
+    [switch]$NoGitUpdate,
+    [switch]$DryRun
 )
 
 $ErrorActionPreference = "Stop"
@@ -31,6 +34,21 @@ if (-not $PSBoundParameters.ContainsKey("InstallMethod")) {
 if (-not $PSBoundParameters.ContainsKey("GitDir")) {
     if (-not [string]::IsNullOrWhiteSpace($env:CLAWDBOT_GIT_DIR)) {
         $GitDir = $env:CLAWDBOT_GIT_DIR
+    }
+}
+if (-not $PSBoundParameters.ContainsKey("NoOnboard")) {
+    if ($env:CLAWDBOT_NO_ONBOARD -eq "1") {
+        $NoOnboard = $true
+    }
+}
+if (-not $PSBoundParameters.ContainsKey("NoGitUpdate")) {
+    if ($env:CLAWDBOT_GIT_UPDATE -eq "0") {
+        $NoGitUpdate = $true
+    }
+}
+if (-not $PSBoundParameters.ContainsKey("DryRun")) {
+    if ($env:CLAWDBOT_DRY_RUN -eq "1") {
+        $DryRun = $true
     }
 }
 
@@ -184,7 +202,8 @@ function Install-Clawdbot {
 # Install Clawdbot from GitHub
 function Install-ClawdbotFromGit {
     param(
-        [string]$RepoDir
+        [string]$RepoDir,
+        [switch]$SkipUpdate
     )
     Require-Git
     Ensure-Pnpm
@@ -196,13 +215,17 @@ function Install-ClawdbotFromGit {
         git clone $repoUrl $RepoDir
     }
 
-    if (-not (git -C $RepoDir status --porcelain 2>$null)) {
-        git -C $RepoDir pull --rebase 2>$null
+    if (-not $SkipUpdate) {
+        if (-not (git -C $RepoDir status --porcelain 2>$null)) {
+            git -C $RepoDir pull --rebase 2>$null
+        } else {
+            Write-Host "[!] Repo is dirty; skipping git pull" -ForegroundColor Yellow
+        }
     } else {
-        Write-Host "[!] Repo is dirty; skipping git pull" -ForegroundColor Yellow
+        Write-Host "[!] Git update disabled; skipping git pull" -ForegroundColor Yellow
     }
 
-    Remove-LegacySubmodule
+    Remove-LegacySubmodule -RepoDir $RepoDir
 
     pnpm -C $RepoDir install
     if (-not (pnpm -C $RepoDir ui:build)) {
@@ -255,7 +278,7 @@ function Remove-LegacySubmodule {
     if ([string]::IsNullOrWhiteSpace($RepoDir)) {
         $RepoDir = Get-LegacyRepoDir
     }
-    $legacyDir = Join-Path $repoDir "Peekaboo"
+    $legacyDir = Join-Path $RepoDir "Peekaboo"
     if (Test-Path $legacyDir) {
         Write-Host "[!] Removing legacy submodule checkout: $legacyDir" -ForegroundColor Yellow
         Remove-Item -Recurse -Force $legacyDir
@@ -264,6 +287,28 @@ function Remove-LegacySubmodule {
 
 # Main installation flow
 function Main {
+    if ($InstallMethod -ne "npm" -and $InstallMethod -ne "git") {
+        Write-Host "Error: invalid -InstallMethod (use npm or git)." -ForegroundColor Red
+        exit 2
+    }
+
+    if ($DryRun) {
+        Write-Host "[OK] Dry run" -ForegroundColor Green
+        Write-Host "[OK] Install method: $InstallMethod" -ForegroundColor Green
+        if ($InstallMethod -eq "git") {
+            Write-Host "[OK] Git dir: $GitDir" -ForegroundColor Green
+            if ($NoGitUpdate) {
+                Write-Host "[OK] Git update: disabled" -ForegroundColor Green
+            } else {
+                Write-Host "[OK] Git update: enabled" -ForegroundColor Green
+            }
+        }
+        if ($NoOnboard) {
+            Write-Host "[OK] Onboard: skipped" -ForegroundColor Green
+        }
+        return
+    }
+
     Remove-LegacySubmodule -RepoDir $RepoDir
 
     # Check for existing installation
@@ -287,7 +332,7 @@ function Main {
     # Step 2: Clawdbot
     if ($InstallMethod -eq "git") {
         $finalGitDir = $GitDir
-        Install-ClawdbotFromGit -RepoDir $GitDir
+        Install-ClawdbotFromGit -RepoDir $GitDir -SkipUpdate:$NoGitUpdate
     } else {
         Install-Clawdbot
     }
@@ -374,9 +419,15 @@ function Main {
         Write-Host "clawdbot doctor" -ForegroundColor Cyan -NoNewline
         Write-Host " to check for additional migrations."
     } else {
-        Write-Host "Starting setup..." -ForegroundColor Cyan
-        Write-Host ""
-        clawdbot onboard
+        if ($NoOnboard) {
+            Write-Host "Skipping onboard (requested). Run " -NoNewline
+            Write-Host "clawdbot onboard" -ForegroundColor Cyan -NoNewline
+            Write-Host " later."
+        } else {
+            Write-Host "Starting setup..." -ForegroundColor Cyan
+            Write-Host ""
+            clawdbot onboard
+        }
     }
 }
 
