@@ -212,7 +212,7 @@ GIT_DIR=${CLAWDBOT_GIT_DIR:-$GIT_DIR_DEFAULT}
 GIT_UPDATE=${CLAWDBOT_GIT_UPDATE:-1}
 SHARP_IGNORE_GLOBAL_LIBVIPS="${SHARP_IGNORE_GLOBAL_LIBVIPS:-1}"
 NPM_LOGLEVEL="${CLAWDBOT_NPM_LOGLEVEL:-error}"
-NPM_SILENT_FLAGS=(--silent)
+NPM_SILENT_FLAG="--silent"
 VERBOSE="${CLAWDBOT_VERBOSE:-0}"
 CLAWDBOT_BIN=""
 HELP=0
@@ -327,7 +327,7 @@ configure_verbose() {
     if [[ "$NPM_LOGLEVEL" == "error" ]]; then
         NPM_LOGLEVEL="notice"
     fi
-    NPM_SILENT_FLAGS=()
+    NPM_SILENT_FLAG=""
     set -x
 }
 
@@ -807,12 +807,12 @@ install_clawdbot() {
     fi
 
     if [[ "${CLAWDBOT_VERSION}" == "latest" ]]; then
-        if ! SHARP_IGNORE_GLOBAL_LIBVIPS="$SHARP_IGNORE_GLOBAL_LIBVIPS" npm --loglevel "$NPM_LOGLEVEL" "${NPM_SILENT_FLAGS[@]}" --no-fund --no-audit install -g "clawdbot@latest"; then
+        if ! SHARP_IGNORE_GLOBAL_LIBVIPS="$SHARP_IGNORE_GLOBAL_LIBVIPS" npm --loglevel "$NPM_LOGLEVEL" ${NPM_SILENT_FLAG:+$NPM_SILENT_FLAG} --no-fund --no-audit install -g "clawdbot@latest"; then
             echo -e "${WARN}→${NC} npm install clawdbot@latest failed; retrying clawdbot@next"
-            SHARP_IGNORE_GLOBAL_LIBVIPS="$SHARP_IGNORE_GLOBAL_LIBVIPS" npm --loglevel "$NPM_LOGLEVEL" "${NPM_SILENT_FLAGS[@]}" --no-fund --no-audit install -g "clawdbot@next"
+            SHARP_IGNORE_GLOBAL_LIBVIPS="$SHARP_IGNORE_GLOBAL_LIBVIPS" npm --loglevel "$NPM_LOGLEVEL" ${NPM_SILENT_FLAG:+$NPM_SILENT_FLAG} --no-fund --no-audit install -g "clawdbot@next"
         fi
     else
-        SHARP_IGNORE_GLOBAL_LIBVIPS="$SHARP_IGNORE_GLOBAL_LIBVIPS" npm --loglevel "$NPM_LOGLEVEL" "${NPM_SILENT_FLAGS[@]}" --no-fund --no-audit install -g "clawdbot@${CLAWDBOT_VERSION}"
+        SHARP_IGNORE_GLOBAL_LIBVIPS="$SHARP_IGNORE_GLOBAL_LIBVIPS" npm --loglevel "$NPM_LOGLEVEL" ${NPM_SILENT_FLAG:+$NPM_SILENT_FLAG} --no-fund --no-audit install -g "clawdbot@${CLAWDBOT_VERSION}"
     fi
 
     echo -e "${SUCCESS}✓${NC} Clawdbot installed"
