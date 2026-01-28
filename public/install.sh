@@ -832,7 +832,7 @@ EOF
 # Install Clawdbot
 resolve_beta_version() {
     local beta=""
-    beta="$(npm view clawdbot dist-tags.beta 2>/dev/null || true)"
+    beta="$(npm view moltbot dist-tags.beta 2>/dev/null || true)"
     if [[ -z "$beta" || "$beta" == "undefined" || "$beta" == "null" ]]; then
         return 1
     fi
@@ -840,12 +840,14 @@ resolve_beta_version() {
 }
 
 install_clawdbot() {
+    local package_name="clawdbot"
     if [[ "$USE_BETA" == "1" ]]; then
         local beta_version=""
         beta_version="$(resolve_beta_version || true)"
         if [[ -n "$beta_version" ]]; then
             CLAWDBOT_VERSION="$beta_version"
             echo -e "${INFO}i${NC} Beta tag detected (${beta_version}); installing beta."
+            package_name="moltbot"
         else
             CLAWDBOT_VERSION="latest"
             echo -e "${INFO}i${NC} No beta tag found; installing latest."
@@ -857,7 +859,7 @@ install_clawdbot() {
     fi
 
     local resolved_version=""
-    resolved_version="$(npm view "clawdbot@${CLAWDBOT_VERSION}" version 2>/dev/null || true)"
+    resolved_version="$(npm view "${package_name}@${CLAWDBOT_VERSION}" version 2>/dev/null || true)"
     if [[ -n "$resolved_version" ]]; then
         echo -e "${WARN}→${NC} Installing Clawdbot ${INFO}${resolved_version}${NC}..."
     else
@@ -865,9 +867,9 @@ install_clawdbot() {
     fi
     local install_spec=""
     if [[ "${CLAWDBOT_VERSION}" == "latest" ]]; then
-        install_spec="clawdbot@latest"
+        install_spec="${package_name}@latest"
     else
-        install_spec="clawdbot@${CLAWDBOT_VERSION}"
+        install_spec="${package_name}@${CLAWDBOT_VERSION}"
     fi
 
     if ! install_clawdbot_npm "${install_spec}"; then
@@ -876,7 +878,7 @@ install_clawdbot() {
         install_clawdbot_npm "${install_spec}"
     fi
 
-    if [[ "${CLAWDBOT_VERSION}" == "latest" ]]; then
+    if [[ "${CLAWDBOT_VERSION}" == "latest" && "${package_name}" == "clawdbot" ]]; then
         if ! resolve_clawdbot_bin &> /dev/null; then
             echo -e "${WARN}→${NC} npm install clawdbot@latest failed; retrying clawdbot@next"
             cleanup_npm_clawdbot_paths
